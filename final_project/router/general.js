@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 let books = require("./booksdb.js");
 let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
@@ -10,102 +11,174 @@ public_users.post("/register", (req,res) => {
   const username = req.body.username;
   const password = req.body.password;
 
-  if (username && password) {
-    if (!doesExist(username)) { // Calls the function here
-      users.push({"username": username, "password": password});
-      return res.status(200).json({message: "User successfully registered. Now you can login"});
-    } else {
-      return res.status(404).json({message: "User already exists!"});
-    }
+  if (!username || !password) {
+    return res.status(404).json({message: "Unable to register user. Username and/or password are not provided."});
   }
-  return res.status(404).json({message: "Unable to register user."});
+
+  if (isValid(username)) {
+    return res.status(404).json({message: "User already exists!"});
+  }
+
+  users.push({"username":username,"password":password});
+  return res.status(200).json({message: "User successfully registered. Now you can login"});
 });
 
-// Get the book list available in the shop
-public_users.get('/',function (req, res) {
+// Helper function to get books using Promise (Axios-like pattern)
+const getBooks = () => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Simulate async operation - in a real scenario, this would be an Axios call
+      // Example: axios.get('http://api.example.com/books').then(resolve).catch(reject)
+      setTimeout(() => {
+        resolve({ data: books }); // Axios returns { data: ... } structure
+      }, 0);
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+// Get the book list available in the shop using async-await with Axios pattern
+public_users.get('/', async function (req, res) {
   //Write your code here
-  res.send(JSON.stringify({books}, null, 4));
+  try {
+    // Using async-await pattern with Axios-like Promise
+    const response = await getBooks();
+    // Axios returns data in response.data
+    return res.status(200).json(response.data);
+  } catch (error) {
+    return res.status(500).json({message: "Error fetching books", error: error.message});
+  }
 });
 
-// Get book details based on ISBN
-public_users.get('/isbn/:isbn',function (req, res) {
-  //Write your code here
-  const isbn = req.params.isbn; // Capture the ISBN from the URL
-  const book = books[isbn];     // Look up the book in your data source
+// Helper function to get book by ISBN using Promise (Axios-like pattern)
+const getBookByISBN = (isbn) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Simulate async operation - in a real scenario, this would be an Axios call
+      // Example: axios.get(`http://api.example.com/books/${isbn}`).then(resolve).catch(reject)
+      setTimeout(() => {
+        if (books[isbn]) {
+          resolve({ data: books[isbn] }); // Axios returns { data: ... } structure
+        } else {
+          reject({ message: "Book not found", status: 404 });
+        }
+      }, 0);
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
 
-  if (book) {
-      return res.status(200).json(book); // Send book details if found
-  } else {
-      return res.status(404).json({ message: "Book not found" }); // Handle missing book
+// Get book details based on ISBN using async-await with Axios pattern
+public_users.get('/isbn/:isbn', async function (req, res) {
+  //Write your code here
+  try {
+    const isbn = req.params.isbn;
+    // Using async-await pattern with Axios-like Promise
+    const response = await getBookByISBN(isbn);
+    // Axios returns data in response.data
+    return res.status(200).json(response.data);
+  } catch (error) {
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({message: error.message || "Error fetching book details", error: error.message});
   }
  });
   
-// Get book details based on author
-public_users.get('/author/:author',function (req, res) {
-  //Write your code here
-  const author = req.params.author; // Capture the author name from the URL
-  const booksByAuthor = [];
-  
-  // Get all keys (ISBNs) from the 'books' object
-  const isbnKeys = Object.keys(books);
-  
-  // Iterate through the books to find matches
-  isbnKeys.forEach((isbn) => {
-      if (books[isbn].author === author) {
-          booksByAuthor.push({
-              isbn: isbn,
-              ...books[isbn]
-          });
-      }
+// Helper function to get books by author using Promise (Axios-like pattern)
+const getBooksByAuthor = (author) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Simulate async operation - in a real scenario, this would be an Axios call
+      // Example: axios.get(`http://api.example.com/books?author=${author}`).then(resolve).catch(reject)
+      setTimeout(() => {
+        const matchingBooks = {};
+        
+        for (let isbn in books) {
+          if (books[isbn].author.toLowerCase() === author.toLowerCase()) {
+            matchingBooks[isbn] = books[isbn];
+          }
+        }
+        
+        if (Object.keys(matchingBooks).length > 0) {
+          resolve({ data: matchingBooks }); // Axios returns { data: ... } structure
+        } else {
+          reject({ message: "No books found for this author", status: 404 });
+        }
+      }, 0);
+    } catch (error) {
+      reject(error);
+    }
   });
+};
 
-  if (booksByAuthor.length > 0) {
-      return res.status(200).json(booksByAuthor); // Send back found books
-  } else {
-      return res.status(404).json({ message: "Author not found" });
+// Get book details based on author using async-await with Axios pattern
+public_users.get('/author/:author', async function (req, res) {
+  //Write your code here
+  try {
+    const author = req.params.author;
+    // Using async-await pattern with Axios-like Promise
+    const response = await getBooksByAuthor(author);
+    // Axios returns data in response.data
+    return res.status(200).json(response.data);
+  } catch (error) {
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({message: error.message || "Error fetching books by author", error: error.message});
   }
 });
 
-// Get all books based on title
-public_users.get('/title/:title',function (req, res) {
-  //Write your code here
-  const title = req.params.title; // Capture title from URL
-  const booksByTitle = [];
-  
-  // Convert book object keys to an array to iterate
-  const isbnKeys = Object.keys(books);
-  
-  // Check each book for a matching title
-  isbnKeys.forEach((isbn) => {
-      if (books[isbn].title === title) {
-          booksByTitle.push({
-              isbn: isbn,
-              ...books[isbn]
-          });
-      }
+// Helper function to get books by title using Promise (Axios-like pattern)
+const getBooksByTitle = (title) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Simulate async operation - in a real scenario, this would be an Axios call
+      // Example: axios.get(`http://api.example.com/books?title=${encodeURIComponent(title)}`).then(resolve).catch(reject)
+      setTimeout(() => {
+        const decodedTitle = decodeURIComponent(title);
+        const matchingBooks = {};
+        
+        for (let isbn in books) {
+          if (books[isbn].title.toLowerCase() === decodedTitle.toLowerCase()) {
+            matchingBooks[isbn] = books[isbn];
+          }
+        }
+        
+        if (Object.keys(matchingBooks).length > 0) {
+          resolve({ data: matchingBooks }); // Axios returns { data: ... } structure
+        } else {
+          reject({ message: "No books found with this title", status: 404 });
+        }
+      }, 0);
+    } catch (error) {
+      reject(error);
+    }
   });
+};
 
-  if (booksByTitle.length > 0) {
-      return res.status(200).json(booksByTitle); // Send found books
-  } else {
-      return res.status(404).json({ message: "No books found with this title" });
+// Get all books based on title using async-await with Axios pattern
+public_users.get('/title/:title', async function (req, res) {
+  //Write your code here
+  try {
+    const title = req.params.title;
+    // Using async-await pattern with Axios-like Promise
+    const response = await getBooksByTitle(title);
+    // Axios returns data in response.data
+    return res.status(200).json(response.data);
+  } catch (error) {
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({message: error.message || "Error fetching books by title", error: error.message});
   }
-
 });
 
 //  Get book review
 public_users.get('/review/:isbn',function (req, res) {
   //Write your code here
-    const isbn = req.params.isbn; // Get ISBN from URL
-    const book = books[isbn];     // Locate the book in the records
-
-    if (book) {
-        // Return only the reviews of the book
-        return res.status(200).json(book.reviews);
-    } else {
-        // Handle case where ISBN does not exist
-        return res.status(404).json({ message: "Book not found" });
-    }
+  const isbn = req.params.isbn;
+  if (books[isbn]) {
+    return res.status(200).json(books[isbn].reviews);
+  } else {
+    return res.status(404).json({message: "Book not found"});
+  }
 });
 
 module.exports.general = public_users;
